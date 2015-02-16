@@ -26,6 +26,8 @@ import logging
 import uci
 import threading
 import copy
+import spur
+import paramiko
 from timecontrol import TimeControl
 from utilities import *
 from keyboardinput import KeyboardInput, TerminalDisplay
@@ -64,19 +66,27 @@ def main():
     update_picochess(args.auto_reboot)
 
     # Load UCI engine
-    engine = uci.Engine(args.engine, hostname=args.remote, username=args.user, key_file=args.server_key, password=args.password)
+    if args.remote:
+        if args.server_key:
+            shell = spur.SshShell(hostname=args.remote, username=args.user, private_key_file=args.server_key, missing_host_key=paramiko.AutoAddPolicy())
+        else:
+            shell = spur.SshShell(hostname=args.remote, username=args.user, password=args.password, missing_host_key=paramiko.AutoAddPolicy())
+        engine = chess.uci.spur_spawn_engine(shell, [args.engine], engine_cls=uci.Engine)
+    else:
+        engine = chess.uci.popen_engine(which(args.engine), engine_cls=uci.Engine)
+    engine.uci()
     logging.debug('Loaded engine [%s]', engine.name)
     logging.debug('Supported options [%s]', engine.options)
     if 'Hash' in engine.options:
-        engine.set_option("Hash", args.hash_size)
+        engine.setoption({"Hash": args.hash_size})
     if 'Threads' in engine.options:  # Stockfish
-        engine.set_option("Threads", args.threads)
+        engine.setoption({"Threads": args.threads})
     if 'Core Threads' in engine.options:  # Hiarcs
-        engine.set_option("Core Threads", args.threads)
+        engine.setoption({"Core Threads": args.threads})
     if args.uci_option:
         for uci_option in args.uci_option.strip('"').split(";"):
             uci_parameter = uci_option.strip().split('=')
-            engine.set_option(uci_parameter[0], uci_parameter[1])
+            engine.setoption({uci_parameter[0]: uci_parameter[1]})
 
     # Connect to DGT board
     if args.dgt_port:
@@ -115,14 +125,19 @@ def main():
         fens.root = g.fen().split(' ')[0]
         return fens
 
+    thinking_canceled = threading.Event()
+
     def think(time):
         """
         Starts a new search on the current game.
         If a move is found in the opening book, fire an event in a few seconds.
         :return:
         """
-        def send_book_move(move):
-            Observable.fire(Event.BEST_MOVE, move=move.uci())
+        thinking_canceled.clear()
+
+        def send_best_move(move, ponder=None):
+            if not thinking_canceled.is_set() and move:
+                Observable.fire(Event.BEST_MOVE, move=move.uci())
 
         global book_thread
         book_move = weighted_choice(book, game)
@@ -130,15 +145,15 @@ def main():
         time.run(game.turn)
         if book_move:
             Display.show(Message.BOOK_MOVE, move=book_move.uci())
-            send_book_move(book_move)
+            send_best_move(book_move)
 
             # No need for one more thread at this point given slightly slower picochess, can bring back if needed
             # book_thread = threading.Timer(2, send_book_move, [book_move])
             # book_thread.start()
         else:
             book_thread = None
-            engine.set_position(game)
-            engine.go(time.uci())
+            engine.position(game)
+            engine.go(async_callback=send_best_move, **time.uci_parameters())
             Display.show(Message.SEARCH_STARTED)
 
     def stop_thinking():
@@ -146,10 +161,12 @@ def main():
         Stop current search or book thread.
         :return:
         """
+        thinking_canceled.set()
+
         if book_thread:
             book_thread.cancel()
         else:
-            engine.stop(True)
+            engine.stop(async_callback=True)
 
     def check_game_state(game, interaction_mode):
         """
@@ -312,7 +329,7 @@ def main():
                 break
 
             if case(Event.UCI_OPTION_SET):
-                engine.set_option(event.name, event.value)
+                engine.setoption({event.name: event.value})
                 break
 
             if case(Event.SHUTDOWN):
