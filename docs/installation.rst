@@ -86,7 +86,7 @@ Manual installation
 PicoChess is mainly targetted for small devices like the `Raspberry Pi <http://www.raspberrypi.org>`_, however is also
 runs on a desktop computer (Linux, OSX, Windows). You will need to install this first :
   
-* `Python 3.3 or newer <https://www.python.org/downloads/>`_ (on mac OS X, brew install python3)
+* `Python 3.4 or newer <https://www.python.org/downloads/>`_ (on mac OS X, brew install python3)
   
 * `pycrypto <https://pypi.python.org/pypi/pycrypto>`_ (on mac OS X, brew install pycrypto)
 
@@ -95,10 +95,6 @@ runs on a desktop computer (Linux, OSX, Windows). You will need to install this 
 * `flask <https://github.com/mitsuhiko/flask>`_
   
 * `git <http://git-scm.com/>`_ (the git executable has to be in the system PATH)
-
-* `asyncio` (pip3 install asyncio)
-
-* `enum34` (pip3 install enum34)
 
 * `zeroconf` (apt-get install avahi-daemon avahi-discover libnss-mdns, included on mac OS X)
   

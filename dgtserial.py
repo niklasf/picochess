@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import enum
 import logging
 import queue
 import serial as pyserial
@@ -22,11 +23,6 @@ import chess
 from timecontrol import *
 from struct import unpack
 from utilities import *
-
-try:
-    import enum
-except ImportError:  # Python 3.3 support
-    import enum34 as enum
 
 
 char_to_DGTXL = {
